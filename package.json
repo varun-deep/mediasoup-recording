@@ -1,0 +1,34 @@
+{
+  "name": "mediasoup-recording",
+  "description": "mediasoup demo - WebRTC recording",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "prestart": "browserify client.js --outfile client-bundle.js --standalone client",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Kurento/mediasoup-demos.git"
+  },
+  "author": "Juan Navarro <juan.navarro@gmx.es> (https://github.com/j1elo)",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/Kurento/mediasoup-demos/issues"
+  },
+  "homepage": "https://github.com/Kurento/mediasoup-demos",
+  "dependencies": {
+    "browserify": "^16.5.2",
+    "express": "^4.18.2",
+    "ffmpeg-static": "^5.2.0",
+    "mediasoup": "^3.11.6",
+    "mediasoup-client": "^3.6.41",
+    "socket.io": "^4.5.4",
+    "socket.io-client": "^4.5.4",
+    "socket.io-promise": "^1.1.1"
+  },
+  "devDependencies": {
+    "eslint": "^8.25.0",
+    "prettier": "^2.7.1"
+  }
+}

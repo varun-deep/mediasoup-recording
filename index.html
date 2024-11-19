@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Disable favicon -->
+    <link rel="icon" href="data:," />
+
+    <title>mediasoup demo - RTP recording</title>
+  </head>
+
+  <body>
+    <h1>mediasoup demo - RTP recording</h1>
+    <p>
+      This <i>mediasoup</i> demo receives the browser's webcam media using
+      WebRTC (<a
+        href="https://mediasoup.org/documentation/v3/mediasoup/api/#WebRtcTransport"
+        target="_blank"
+        >WebRtcTransport</a
+      >); it then starts an external recording process, and sends the media to
+      it through RTP (<a
+        href="https://mediasoup.org/documentation/v3/mediasoup/api/#PlainTransport"
+        target="_blank"
+        >PlainTransport</a
+      >).
+    </p>
+
+    <p>
+      <strong>Important</strong>: Check the
+      <a href="README.md" target="_blank">README file</a> for setup
+      instructions.
+    </p>
+
+    <fieldset id="uiSettings">
+      <legend>Settings:</legend>
+      <div>
+        Media:
+        <label>
+          <input type="radio" name="uiMedia" value="audio" />
+          Audio only
+        </label>
+        <label>
+          <input type="radio" name="uiMedia" value="video" />
+          Video only
+        </label>
+        <label>
+          <input type="radio" name="uiMedia" value="audio+video" checked />
+          Audio + Video
+        </label>
+      </div>
+
+      <div>
+        Recording program:
+        <label>
+          <input type="radio" name="uiRecorder" value="ffmpeg" />
+          FFmpeg
+        </label>
+        <label>
+          <input type="radio" name="uiRecorder" value="gstreamer" checked />
+          GStreamer
+        </label>
+        <label>
+          <input type="radio" name="uiRecorder" value="external" />
+          External
+        </label>
+      </div>
+
+      <div>
+        Video codec:
+        <label>
+          <input type="radio" name="uiVCodecName" value="VP8" checked />
+          VP8 (WEBM file)
+        </label>
+        <label>
+          <input type="radio" name="uiVCodecName" value="H264" />
+          H.264 (MP4 file)
+        </label>
+      </div>
+    </fieldset>
+
+    <div>
+      <ol>
+        <li><button id="uiStartWebRTC">Start WebRTC</button></li>
+        <li><button id="uiStartRecording" disabled>Start Recording</button></li>
+        <li><button id="uiStopRecording" disabled>Stop Recording</button></li>
+      </ol>
+    </div>
+
+    <div>
+      <div>
+        <h2>Local video (from webcam)</h2>
+        <video
+          id="uiLocalVideo"
+          style="width: 320px;"
+          playsinline
+          autoplay
+          muted
+        ></video>
+      </div>
+    </div>
+
+    <div>
+      <h2>Console output</h2>
+      <textarea
+        id="uiConsole"
+        style="width: 100%; height: 300px;"
+        readonly
+      ></textarea>
+    </div>
+
+    <script>
+      // This enables debug mode in the mediasoup-client library.
+      window.localStorage.setItem(
+        "debug",
+        "mediasoup-client:* mediasoup-client:WARN* mediasoup-client:ERROR*"
+      );
+    </script>
+    <script src="https://webrtchacks.github.io/adapter/adapter-latest.js"></script>
+    <script src="client-bundle.js"></script>
+  </body>
+</html>
