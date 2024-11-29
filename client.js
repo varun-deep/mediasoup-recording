@@ -250,25 +250,22 @@ async function startWebrtcSend() {
 
   if (useAudio) {
     const audioTrack = stream.getAudioTracks()[0];
-    const audioProducer = await transport.produce({ track: audioTrack });
-    global.mediasoup.webrtc.audioProducer = audioProducer;
+    global.mediasoup.webrtc.audioProducer = await transport.produce({track: audioTrack});
   }
 
   if (useVideo) {
     const videoTrack = stream.getVideoTracks()[0];
-    const videoProducer = await transport.produce({
+    global.mediasoup.webrtc.videoProducer = await transport.produce({
       track: videoTrack,
       ...CONFIG.mediasoup.client.videoProducer,
     });
-    global.mediasoup.webrtc.videoProducer = videoProducer;
   }
 }
 
 // ----------------------------------------------------------------------------
 
 function startRecording() {
-  const uiRecorder = document.querySelector("input[name='uiRecorder']:checked")
-    .value;
+  const uiRecorder = document.querySelector("input[name='uiRecorder']:checked").value;
   global.server.socket.emit("START_RECORDING", uiRecorder);
 
   // Update UI
@@ -281,7 +278,7 @@ function startRecording() {
 function stopRecording() {
   global.server.socket.emit("STOP_RECORDING");
 
-  // Update UI
+  ui.startRecording.disabled = false;
   ui.stopRecording.disabled = true;
 }
 
