@@ -2,18 +2,14 @@ use gstreamer::prelude::*;
 use gstreamer::MessageView;
 use gstreamer::*;
 use std::sync::{Arc, Mutex};
-use std::thread;
 use ctrlc;
 
 fn start_recording_gstreamer() -> Result<Pipeline, Box<dyn std::error::Error>> {
     let sdp_path = String::from("input-h264.sdp");
-    let mp4_temp_path = String::from("output.mp4.tmp");
-    let mp4_path = String::from("output.mp4");
+    let output_pattern = String::from("recording/chunk_%05d.mp4");
 
     gstreamer::init()?;
-
     let pipeline = Pipeline::with_name("gstreamer-pipeline");
-
     let file_src = ElementFactory::make("filesrc")
         .name("filesrc")
         .property("location", sdp_path)
@@ -26,18 +22,20 @@ fn start_recording_gstreamer() -> Result<Pipeline, Box<dyn std::error::Error>> {
         .build()
         .expect("Error creating sdp_demux element");
 
-    let mp4mux = ElementFactory::make("mp4mux")
-        .name("mp4mux")
-        .property("faststart", &true)
-        .property("faststart-file", mp4_temp_path)
-        .build()
-        .expect("Error creating mp4mux element");
 
-    let file_sink = ElementFactory::make("filesink")
-        .name("filesink")
-        .property("location", mp4_path)
+    let mut muxer_properties = gstreamer::Structure::new_empty("properties");
+
+    muxer_properties.set("faststart", &true);
+    muxer_properties.set("fragment-duration", &1000u32);
+
+    let splitmuxsink = ElementFactory::make("splitmuxsink")
+        .name("splitmuxsink")
+        .property("location", output_pattern)
+        .property("max-size-bytes", 1000000u64)
+        .property("max-size-time", 10000000000u64) // Split every 10 seconds is the config but idk why it splits when the first chunk is 3 mins and then all the subsequent chunks get split at 129 seconds (2:09 mins)
+        .property("muxer-factory", "mp4mux")
         .build()
-        .expect("Error creating file_sink element");
+        .expect("Error creating splitmuxsink element");
 
     let queue_opus = ElementFactory::make("queue")
         .name("queue_opus")
@@ -70,17 +68,17 @@ fn start_recording_gstreamer() -> Result<Pipeline, Box<dyn std::error::Error>> {
         .expect("Error creating h264_parse element");
 
     pipeline.add_many(&[
-        &file_src, &sdp_demux, &file_sink,
+        &file_src, &sdp_demux,
         &queue_opus, &rtp_opus_depay, &opus_parse,
         &queue_h264, &rtp_h264_depay, &h264_parse,
-        &mp4mux
-    ]).expect("");
+        &splitmuxsink
+    ]).expect("Failed to add elements to pipeline");
 
     gstreamer::Element::link_many(&[&file_src , &sdp_demux])
         .expect("Error linking file_src and sdp_demux elements");
 
-    gstreamer::Element::link_many(&[&mp4mux, &file_sink])
-        .expect("Error linking mp4_mux and file_sink elements");
+    let audio_sink = splitmuxsink.request_pad_simple("audio_%u").unwrap();
+    let video_sink = splitmuxsink.request_pad_simple("video").unwrap();
 
     sdp_demux.connect_pad_added(move |_, src_pad| {
         println!("Pad added: {}", src_pad.name());
@@ -89,33 +87,37 @@ fn start_recording_gstreamer() -> Result<Pipeline, Box<dyn std::error::Error>> {
         let caps = src_pad.query_caps(None);
         println!("{:#?}", caps);
 
-        let media_type = caps.structure(0).and_then(|s| s.get::<&str>("media").ok()).expect("Error getting structure");
+        let media_type = caps.structure(0)
+            .and_then(|s| s.get::<&str>("media").ok())
+            .expect("Error getting structure");
 
         println!("New pad added with media type: {}", media_type);
-
+    
         if media_type == "audio" {
 
             let sink_pad = queue_opus
                 .static_pad("sink")
-                .expect("Failed to get sink pad from queue_opus_clone.");
+                .expect("Failed to get sink pad from queue_opus");
 
             match src_pad.link(&sink_pad) {
-                Ok(_) => println!("Linked audio pad to queue_opus_clone."),
+                Ok(_) => println!("Linked audio pad to queue_opus"),
                 Err(err) => {
                     eprintln!("Failed to link audio pad: {}", err);
                     return;
                 }
             }
-
+    
             match gstreamer::Element::link_many(&[
                 &queue_opus,
                 &rtp_opus_depay,
                 &opus_parse,
-                &mp4mux,
             ]) {
                 Ok(_) => println!("Successfully linked Opus branch."),
                 Err(err) => eprintln!("Failed to link Opus branch: {}", err),
             }
+
+            let opus_src = opus_parse.static_pad("src").expect("Failed to get opus_parse src pad");
+            opus_src.link(&audio_sink).expect("Failed to link opus to splitmuxsink");
 
         } else if media_type == "video" {
 
@@ -134,11 +136,14 @@ fn start_recording_gstreamer() -> Result<Pipeline, Box<dyn std::error::Error>> {
                 &queue_h264,
                 &rtp_h264_depay,
                 &h264_parse,
-                &mp4mux,
             ]) {
                 Ok(_) => println!("Successfully linked H264 branch."),
                 Err(err) => eprintln!("Failed to link H264 branch: {}", err),
             }
+            // video_aux_%u
+            // video
+            let h264_src = h264_parse.static_pad("src").unwrap();
+            h264_src.link(&video_sink).expect("Failed to link h264 to splitmuxsink");
         }
     });
 
@@ -146,6 +151,12 @@ fn start_recording_gstreamer() -> Result<Pipeline, Box<dyn std::error::Error>> {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+
+    // start time 
+    let now = std::time::SystemTime::now();
+    let now = now.duration_since(std::time::SystemTime::UNIX_EPOCH).unwrap();
+    let now = now.as_secs();
+
     println!("Starting GStreamer recording...");
 
     let pipeline = start_recording_gstreamer()?;
@@ -161,7 +172,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     })?;
 
     let bus = pipeline.lock().unwrap().bus().expect("Pipeline has no bus");
-
+    
     for msg in bus.iter_timed(gstreamer::ClockTime::NONE) {
         match msg.view() {
             MessageView::Eos(..) => {
@@ -183,7 +194,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     pipeline.lock().unwrap().set_state(State::Null)?;
     println!("Pipeline stopped");
+    // end time
+    let end = std::time::SystemTime::now();
+    let end = end.duration_since(std::time::SystemTime::UNIX_EPOCH).unwrap();
+    let end = end.as_secs();
 
+    let duration = end - now;
+    println!("Duration: {} seconds", duration);
     Ok(())
 }
-
