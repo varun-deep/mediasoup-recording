@@ -46,6 +46,8 @@ const ui = {
   startWebRTC: document.getElementById("uiStartWebRTC"),
   startRecording: document.getElementById("uiStartRecording"),
   stopRecording: document.getElementById("uiStopRecording"),
+  pauseProducer: document.getElementById("pauseProducer"),
+  resumeProducer: document.getElementById("resumeProducer"),
 
   // <video>
   localVideo: document.getElementById("uiLocalVideo"),
@@ -54,6 +56,8 @@ const ui = {
 ui.startWebRTC.onclick = startWebRTC;
 ui.startRecording.onclick = startRecording;
 ui.stopRecording.onclick = stopRecording;
+ui.pauseProducer.onclick = pauseProducer;
+ui.resumeProducer.onclick = resumeProducer;
 
 // ----------------------------------------------------------------------------
 
@@ -117,6 +121,7 @@ function connectSocket() {
     if (!global.recording.waitForAudio && !global.recording.waitForVideo) {
       ui.settings.disabled = true;
       ui.startWebRTC.disabled = true;
+      ui.pauseProducer.disabled = false;
       ui.startRecording.disabled = false;
     }
   });
@@ -261,6 +266,18 @@ async function startWebrtcSend() {
       ...CONFIG.mediasoup.client.videoProducer,
     });
   }
+}
+
+function pauseProducer() {
+  global.server.socket.emit('PAUSE_PRODUCER')
+  ui.pauseProducer.disabled = true;
+  ui.resumeProducer.disabled = false;
+}
+
+function resumeProducer(){
+  global.server.socket.emit('RESUME_PRODUCER')
+  ui.pauseProducer.disabled = false;
+  ui.resumeProducer.disabled = true;
 }
 
 // ----------------------------------------------------------------------------

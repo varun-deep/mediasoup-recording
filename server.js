@@ -132,8 +132,12 @@ for (const name of ["log", "info", "warn", "error"]) {
     socket.on("WEBRTC_RECV_PRODUCE", handleWebrtcRecvProduce);
     socket.on("START_RECORDING", handleStartRecording);
     socket.on("STOP_RECORDING", handleStopRecording);
+    socket.on("PAUSE_PRODUCER", handlePauseProducer);
+    socket.on("RESUME_PRODUCER", handleResumeProducer);
   });
 }
+
+
 
 // ----
 
@@ -800,6 +804,14 @@ async function handleStopRecording() {
   }
 }
 
+async function handlePauseProducer() {
+    pauseMediasoupRtp();
+}
+
+async function handleResumeProducer() {
+    resumeMediasoupRtp();
+}
+
 // ----
 
 function stopMediasoupRtp() {
@@ -817,6 +829,38 @@ function stopMediasoupRtp() {
     global.mediasoup.rtp.videoConsumer.close();
     global.mediasoup.rtp.videoTransport.close();
   }
+}
+
+function pauseMediasoupRtp() {
+  console.log("Pausing mediaoup RTP consumer");
+
+  const useAudio = audioEnabled();
+  const useVideo = videoEnabled();
+
+  if(useAudio) {
+    global.mediasoup.rtp.audioConsumer.pause();
+  }
+
+  if(useVideo) {
+    global.mediasoup.rtp.videoConsumer.pause();
+  }
+
+}
+
+function resumeMediasoupRtp() {
+  console.log("Resuming mediasoup RTP consumer");
+
+  const useAudio = audioEnabled();
+  const useVideo = videoEnabled();
+
+    if(useAudio) {
+        global.mediasoup.rtp.audioConsumer.resume();
+    }
+
+    if(useVideo) {
+        global.mediasoup.rtp.videoConsumer.resume();
+    }
+
 }
 
 // ----------------------------------------------------------------------------
