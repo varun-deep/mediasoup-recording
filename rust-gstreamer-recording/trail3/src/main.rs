@@ -1,13 +1,18 @@
 use std::error::Error;
 use std::sync::{Arc, Mutex};
+use chrono::Utc;
 use gstreamer::{ClockTime, ElementFactory, PadProbeReturn, PadProbeType};
-use gstreamer::prelude::{ElementExt, ElementExtManual, GstBinExtManual, GstObjectExt, ObjectExt, PadExt, PadExtManual};
+use gstreamer::prelude::{ElementExt, ElementExtManual, GstBinExtManual, GstObjectExt, ObjectExt, PadExt, PadExtManual, PipelineExt};
+use gstreamer_app::gst_base::ffi::{GstAggregatorStartTimeSelection, GST_AGGREGATOR_START_TIME_SELECTION_SET};
 
 fn main() -> Result<(), Box<dyn Error>>{
     println!("Hello, world!");
-    std::env::set_var("GST_DEBUG", "3");
+    // std::env::set_var("GST_DEBUG", "GST_BUFFER:6");
     gstreamer::init()?;
     let pipeline = gstreamer::Pipeline::with_name("Audio Pipeline");
+    let shared_clock = gstreamer::SystemClock::obtain();
+    // shared_clock.set_property("clock-type", &"realtime");
+    pipeline.use_clock(Some(&shared_clock));
     /* ------------------- Creation of the elements  ------------------- */
     let audio_caps = gstreamer::Caps::builder("application/x-rtp")
         .field("media", "audio")
@@ -41,14 +46,34 @@ fn main() -> Result<(), Box<dyn Error>>{
     let opus_enc_element = gstreamer::ElementFactory::make("opusenc")
         .name("opusenc").build()
         .expect("Failed to create opusenc element");
-    let output_pattern = String::from("chunk_%05d.mp4");
+    let identity_element = ElementFactory::make("identity")
+        .name("identity")
+        .property("sync", true)
+        .property("silent", false)
+        .build()
+        .expect("Failed to create identity element");
+    let output_pattern = String::from("chunk_%05d.ts");
+    let timestamp = (Utc::now().timestamp() * 90 / 1_000_000_000) as u64;
+    println!("Start time is {}", timestamp);
+    let muxer = ElementFactory::make("mpegtsmux")
+        .name("mpegtsmux")
+        // .property_from_str("start-time-selection", "0")
+        // .property("start-time", timestamp)
+        .build()
+        .expect("Error creating mpegtsmux element");
+    /*let start_time_selection= muxer
+        .property_value("start-time-selection");
+    println!("Muxer property start_time_selection {:#?}", start_time_selection);
+    let start_time= muxer
+        .property_value("start-time");
+    println!("Muxer property start_time {:#?}", start_time);*/
     let split_mux_sink_element = ElementFactory::make("splitmuxsink")
         .name("splitmuxsink")
         .property("location", output_pattern)
         // .property("max-size-bytes", 1000000u64)
         .property("max-size-time", ClockTime::from_seconds(5).nseconds()) // Split every 10 seconds is the config but idk why it splits when the first chunk is 3 mins and then all the subsequent chunks get split at 129 seconds (2:09 mins)
         // .property("muxer-factory", "mp4mux")
-        // .property("muxer", &muxer)
+        .property("muxer", &muxer)
         .build()
         .expect("Error creating splitmuxsink element");
     /* ------------------- Add elements to the pipeline ------------------- */
@@ -58,6 +83,7 @@ fn main() -> Result<(), Box<dyn Error>>{
         &rtp_opus_de_pay_element,
         &opus_dec_element,
         &opus_enc_element,
+        &identity_element,
         &split_mux_sink_element]).expect("Failed to add elements to the pipeline");
 
     /* ------------------- Start Linking of pads / elements ------------------- */
@@ -86,7 +112,8 @@ fn main() -> Result<(), Box<dyn Error>>{
     queue_element.link(&rtp_opus_de_pay_element).expect("Failed to link queue and rtp_opus_de_pay");
     rtp_opus_de_pay_element.link(&opus_dec_element).expect("Failed to link rtpopusdepay and opusdec");
     opus_dec_element.link(&opus_enc_element).expect("Failed to link opusdec and opusenc");
-    let opus_enc_src_pad = opus_enc_element.static_pad("src")
+    opus_enc_element.link(&identity_element).expect("Failed to link opusenc and identity");
+    let opus_enc_src_pad = identity_element.static_pad("src")
         .expect("Failed to get sink pad from opusenc");
     let split_mux_sink_audio_pad = split_mux_sink_element.request_pad_simple("audio_%u")
         .expect("Failed to get audio pad from splitmuxsink");
