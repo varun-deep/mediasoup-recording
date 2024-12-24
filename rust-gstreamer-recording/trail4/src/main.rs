@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::sync::{Arc, Mutex};
-use chrono::Utc;
-use gstreamer::{ClockTime, Element, ElementFactory, PadProbeReturn, PadProbeType};
+use chrono::{Local, Utc};
+use gstreamer::{glib, ClockTime, Element, ElementFactory, PadProbeReturn, PadProbeType};
 use gstreamer::prelude::{ElementExt, ElementExtManual, GstBinExt, GstBinExtManual, GstObjectExt, ObjectExt, PadExt, PadExtManual, PipelineExt, PresetExt};
 use gstreamer_app::gst;
 use gstreamer_app::gst_base::ffi::{GstAggregatorStartTimeSelection, GST_AGGREGATOR_START_TIME_SELECTION_SET};
@@ -79,6 +79,21 @@ fn main() -> Result<(), Box<dyn Error>>{
         .property("muxer", &muxer)
         .build()
         .expect("Error creating splitmuxsink element");
+    split_mux_sink_element.connect("format-location", false, |values| {
+        let splitmuxsink: gstreamer::Element = values[0]
+            .get::<gstreamer::Element>()
+            .expect("Failed to get splitmuxsink element");
+
+        // Generate the custom filename with a timestamp
+        let timestamp_nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_nanos();
+        let filename = format!("video_chunk_{}.ts", timestamp_nanos);
+
+        // Return the filename
+        Some(glib::Value::from(&filename))
+    });
     let fake_sink_element = gstreamer::ElementFactory::make("fakesink")
         .name("fakesink").build()
         .expect("Failed to create fakesink element");
