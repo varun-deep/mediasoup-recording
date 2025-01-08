@@ -6,6 +6,9 @@ trail4 -> video pipeline gstreamer
 do a cargo run for both audio and video first before starting the recording from the frontend
 the audio chunks will be pushed to the trail3 folder, and the video chunks will be pushed to the trail4 folder
 
+### Show packet metadata for each chunk
+ffprobe -show_frames -print_format json chunk.ts > data.json
+
 # mediasoup demo - RTP recording
 
 In this example, a browser's webcam media is transmitted to [mediasoup](https://mediasoup.org/) using WebRTC ([WebRtcTransport](https://mediasoup.org/documentation/v3/mediasoup/api/#WebRtcTransport)); it is then served as a plain RTP stream ([PlainTransport](https://mediasoup.org/documentation/v3/mediasoup/api/#PlainTransport)) to be received and recorded by an external process.
