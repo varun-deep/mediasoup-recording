@@ -59,7 +59,7 @@ fn main() -> Result<(), Box<dyn Error>>{
         .expect("Failed to create rtph264depay element");
     let h264_parse_element = gstreamer::ElementFactory::make("h264parse")
         .name("h264parse")
-        // .property("config-interval", -1)
+        .property("config-interval", -1)
         .build()
         .expect("Failed to create h264parse element");
     let output_pattern = String::from("video_chunk_%05d.ts");
@@ -80,10 +80,6 @@ fn main() -> Result<(), Box<dyn Error>>{
         .build()
         .expect("Error creating splitmuxsink element");
     split_mux_sink_element.connect("format-location", false, |values| {
-        let splitmuxsink: gstreamer::Element = values[0]
-            .get::<gstreamer::Element>()
-            .expect("Failed to get splitmuxsink element");
-
         // Generate the custom filename with a timestamp
         let timestamp_nanos = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
